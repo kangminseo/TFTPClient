@@ -4,54 +4,56 @@ from struct import pack
 import time
 import sys
 
+# 기본 값 설정
 DEFAULT_PORT = 69
 BLOCK_SIZE = 512
 DEFAULT_TRANSFER_MODE = 'octet'
 
+# TFTP 통신을 위한 코드, 모드, 에러 코드 정의
 OPCODE = {'RRQ': 1, 'WRQ': 2, 'DATA': 3, 'ACK': 4, 'ERROR': 5}
 MODE = {'netascii': 1, 'octet': 2, 'mail': 3}
-
 ERROR_CODE = {
-    0: "Not defined, see error message (if any).",
-    1: "File not found.",
-    2: "Access violation.",
-    3: "Disk full or allocation exceeded.",
-    4: "Illegal TFTP operation.",
-    5: "Unknown transfer ID.",
-    6: "File already exists.",
-    7: "No such user."
+    0: "정의되지 않음, 에러 메시지 참조 (있는 경우).",
+    1: "파일을 찾을 수 없음.",
+    2: "접근 위반.",
+    3: "디스크 공간 부족 또는 할당 초과.",
+    4: "잘못된 TFTP 작업.",
+    5: "알 수 없는 전송 ID.",
+    6: "파일이 이미 존재함.",
+    7: "해당 사용자가 없음."
 }
 
-
+# 서버에 Write Request (WRQ) 메시지 전송
 def send_wrq(filename, mode):
     format_str = f'>h{len(filename)}sB{len(mode)}sB'
     wrq_message = pack(format_str, OPCODE['WRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
     sock.sendto(wrq_message, server_address)
     print(wrq_message)
-    timeout = time.time() + 10  # Timeout set to 10 seconds
+    timeout = time.time() + 10  # 10초 동안의 타임아웃 설정
     ack_received = False
 
     while True:
         if time.time() > timeout:
-            print("Timeout: No ACK received.")
+            print("타임아웃: ACK를 받지 못함.")
             break
 
         try:
             data, _ = sock.recvfrom(4)
             opcode = int.from_bytes(data[:2], 'big')
             ack_block = int.from_bytes(data[2:4], 'big')
-            if opcode == OPCODE['ACK'] and ack_block == 0:  # Expected ACK
+            if opcode == OPCODE['ACK'] and ack_block == 0:  # 예상한 ACK 수신
                 ack_received = True
-                print("ACK 0 received.")
+                print("ACK 0 받음.")
                 break
         except socket.error:
             pass
 
     if not ack_received:
-        print("No valid response received. Transmission failed.")
+        print("유효한 응답을 받지 못했습니다. 전송 실패.")
         sys.exit(1)
 
 
+# 서버에 Read Request (RRQ) 메시지 전송
 def send_rrq(filename, mode):
     format_str = f'>h{len(filename)}sB{len(mode)}sB'
     rrq_message = pack(format_str, OPCODE['RRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
@@ -59,6 +61,7 @@ def send_rrq(filename, mode):
     print(rrq_message)
 
 
+# ACK 메시지 전송
 def send_ack(seq_num, server):
     format_str = '>hh'
     ack_message = pack(format_str, OPCODE['ACK'], seq_num)
@@ -67,6 +70,7 @@ def send_ack(seq_num, server):
     print(ack_message)
 
 
+# 파일 전송
 def send_file(filename):
     file = open(filename, 'rb')
     block_number = 1
@@ -84,12 +88,12 @@ def send_file(filename):
                 if ack == expected_ack:
                     break
             except socket.timeout:
-                print("Timeout: Resending data.")
+                print("타임아웃: 데이터 재전송.")
                 sock.sendto(data, server_address)
                 resend_attempts += 1
 
         if resend_attempts == 3:
-            print("Failed to receive ACK. Transmission aborted.")
+            print("ACK 받지 못함. 전송 중단.")
             sys.exit(1)
 
         if len(file_block) < BLOCK_SIZE:
@@ -98,14 +102,14 @@ def send_file(filename):
         block_number += 1
 
     file.close()
-    print("File sent successfully.")
+    print("파일 전송 성공.")
 
 
-# parse command line arguments
-parser = argparse.ArgumentParser(description='TFTP client program')
-parser.add_argument(dest="host", help="Server IP address", type=str)
-parser.add_argument(dest="operation", help="get or put a file", type=str)
-parser.add_argument(dest="filename", help="name of file to transfer", type=str)
+# 명령줄 인자 파싱
+parser = argparse.ArgumentParser(description='TFTP 클라이언트 프로그램')
+parser.add_argument(dest="host", help="서버 IP 주소", type=str)
+parser.add_argument(dest="operation", help="파일 가져오기 또는 전송", type=str)
+parser.add_argument(dest="filename", help="전송할 파일 이름", type=str)
 parser.add_argument("-p", "--port", dest="port", type=int)
 args = parser.parse_args()
 
@@ -113,7 +117,7 @@ server_ip = args.host
 server_port = args.port if args.port is not None else DEFAULT_PORT
 server_address = (server_ip, server_port)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(5)  # Set socket timeout to 5 seconds
+sock.settimeout(5)  # 소켓 타임아웃을 5초로 설정
 
 mode = DEFAULT_TRANSFER_MODE
 operation = args.operation
