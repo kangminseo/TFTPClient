@@ -14,43 +14,47 @@ MODE = {'netascii': 1, 'octet': 2, 'mail': 3}
 
 # TFTP 오류 코드 정의
 ERROR_CODE = {
-    0: "정의되지 않음, 에러 메시지 참조 (있는 경우).",
-    1: "파일을 찾을 수 없음.",
-    2: "접근 거부.",
-    3: "디스크가 가득 찼거나 할당이 초과되었습니다.",
-    4: "잘못된 TFTP 작업.",
-    5: "알 수 없는 전송 ID.",
-    6: "파일이 이미 존재합니다.",
-    7: "해당 사용자가 없습니다."
+   0: "Not defined, see error message (if any).",
+    1: "File not found.",
+    2: "Access violation.",
+    3: "Disk full or allocation exceeded.",
+    4: "Illegal TFTP operation.",
+    5: "Unknown transfer ID.",
+    6: "File already exists.",
+    7: "No such user."
 }
 
 # 서버에 WRQ 메시지를 보내는 함수
 def send_wrq(filename, mode, server_address):
-    format = f'>h{len(filename)}sB{len(mode)}sB'
-    wrq_message = pack(format, OPCODE['WRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
+    # WRQ 메시지 생성
+    format_str = f'>h{len(filename)}sB{len(mode)}sB'
+    wrq_message = pack(format_str, OPCODE['WRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
     sock.sendto(wrq_message, server_address)
 
 # 서버에 RRQ 메시지를 보내는 함수
 def send_rrq(filename, mode, server_address):
-    format = f'>h{len(filename)}sB{len(mode)}sB'
-    rrq_message = pack(format, OPCODE['RRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
+    # RRQ 메시지 생성
+    format_str = f'>h{len(filename)}sB{len(mode)}sB'
+    rrq_message = pack(format_str, OPCODE['RRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
     sock.sendto(rrq_message, server_address)
 
 # ACK 메시지를 서버로 보내는 함수
 def send_ack(seq_num, server):
-    format = f'>hh'
-    ack_message = pack(format, OPCODE['ACK'], seq_num)
+    # ACK 메시지 생성
+    format_str = f'>hh'
+    ack_message = pack(format_str, OPCODE['ACK'], seq_num)
     sock.sendto(ack_message, server)
 
 # DATA 메시지를 서버로 보내는 함수
 def send_data(seq_num, server, data):
-    format = f'>hh{len(data)}s'
-    data_message = pack(format, OPCODE['DATA'], seq_num, data)
+    # DATA 메시지 생성
+    format_str = f'>hh{len(data)}s'
+    data_message = pack(format_str, OPCODE['DATA'], seq_num, data)
     sock.sendto(data_message, server)
 
 # 서버로부터 파일을 받는 함수
 def receive_file():
-    file = open(filename, "wb")  # 쓰기모드로 열기
+    file = open(filename, "wb")  # 쓰기 모드로 열기
     seq_number = 0  # 시퀀스 넘버 초기값 설정
 
     while True:
@@ -59,7 +63,7 @@ def receive_file():
 
         if opcode == OPCODE['DATA']:
             seq_number = int.from_bytes(data[2:4], 'big')  # 시퀀스 넘버 확인
-            send_ack(seq_number, server)  # 확인 후 ack메세지 전송
+            send_ack(seq_number, server)  # 확인 후 ACK 메세지 전송
 
             file_block = data[4:]  # 실제 데이터 추출
             file.write(file_block)
@@ -69,21 +73,21 @@ def receive_file():
                 break
 
         elif opcode == OPCODE['ERROR']:
-            error_code = int.from_bytes(data[2:4], byteorder='big')  # 받은 패킷이 오류 코드면 오류메세지 출력 후 while문 실행
-            print(ERROR_CODE[error_code])
+            error_code = int.from_bytes(data[2:4], byteorder='big')  # 받은 패킷이 오류 코드면 오류 메세지 출력 후 while문 실행
+            print(ERROR_CODE.get(error_code, "Unknown error"))
             break
 
         else:  # 다른 종류의 패킷이 도착하면 while문 빠져나옴
             break
 
-        # 파일 전송이 완료되었는지 확인
-        file_block = data[4:]
-        print(file_block.decode())
-        file.write(file_block)
-        if len(file_block) < BLOCK_SIZE:
-            print(len(file_block))
-            file.close()
-            break
+    # 파일 전송이 완료되었는지 확인
+    file_block = data[4:]
+    print(file_block.decode())
+    file.write(file_block)
+    if len(file_block) < BLOCK_SIZE:
+        print(len(file_block))
+        file.close()
+        break
 
 # 파일을 서버에 전송하는 함수
 def send_file():
@@ -112,18 +116,17 @@ def send_file():
         print("File not found.")
         sys.exit(1)
 
-
 # 명령행 인수 파싱
 parser = argparse.ArgumentParser(description='TFTP client program')
-parser.add_argument(dest="host", help="서버 IP 주소", type=str)
-parser.add_argument(dest="action", help="파일 put 또는 get", type=str)
-parser.add_argument(dest="filename", help="전송할 파일 이름", type=str)
-parser.add_argument("-p", "--port", dest="port", action="store", type=int)
+parser.add_argument(dest="host", help="Server IP address", type=str)
+parser.add_argument(dest="action", help="File put or get", type=str, choices=['get', 'put'])
+parser.add_argument(dest="filename", help="Name of file to transfer", type=str)
+parser.add_argument("-p", "--port", dest="port", type=int, default=DEFAULT_PORT)
 args = parser.parse_args()
 
-# 서버 주소 및 포트 설정 ,사용자로부터 포트번호가 설정되지 않으면 DEFAULT_PORT 번호를 사용
+# 서버 주소 및 포트 설정, 사용자로부터 포트번호가 설정되지 않으면 DEFAULT_PORT 번호를 사용
 server_ip = args.host
-server_port = args.port if args.port is not None else DEFAULT_PORT
+server_port = args.port
 server_address = (server_ip, server_port)
 
 # UDP 소켓 생성 및 타임아웃 설정
@@ -133,13 +136,14 @@ sock.settimeout(20)  # 소켓 타임아웃 설정
 # rrq_message 전송
 mode = DEFAULT_TRANSFER_MODE
 filename = args.filename
-if args.action =='get':
+if args.action == 'get':
     send_rrq(filename, mode, server_address)
     receive_file()
-    print("success")
+    print("Success")
 
-elif args.action=='put':
+elif args.action == 'put':
     send_wrq(filename, mode, server_address)
     send_file()
-    print("success")
-    sock.close()
+    print("Success")
+
+sock.close()
