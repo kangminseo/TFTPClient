@@ -128,7 +128,7 @@ server_address = (server_ip, server_port)
 
 # UDP 소켓 생성 및 타임아웃 설정
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(10)  # 소켓 타임아웃 설정
+sock.settimeout(20)  # 소켓 타임아웃 설정
 
 # rrq_message 전송
 mode = DEFAULT_TRANSFER_MODE
